@@ -1,0 +1,25 @@
+# Reduce email spam
+notifications:
+  email: false
+
+# Use clang++
+env:
+    - CXX="clang++"
+
+# Handle submodules manually
+git:
+    submodules: false
+
+# Replace SSH URLs with a public URL
+before_install:
+    - sed -i 's/git@github.com:/https:\/\/github.com\//' .gitmodules
+    - git submodule update --init --recursive
+compiler: clang
+language: c
+
+script:
+  - mkdir build
+  - cd build
+  - cmake .. -DCMAKE_BUILD_TYPE=Debug
+  - make
+  - ctest -V
