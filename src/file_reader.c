@@ -8,14 +8,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define BLOCK_SIZE 4096
+#include "file_reader.h"
 
-struct file_buffer {
-    int fd;
-    void *ptr;
-    size_t len;
-    size_t offset;
-};
+#define BLOCK_SIZE 4096
 
 int
 start_reading(struct file_buffer *filebuf, const char* filename)
@@ -37,8 +32,10 @@ start_reading(struct file_buffer *filebuf, const char* filename)
     if ((tmp = mmap(NULL, sbuf.st_size, PROT_READ, MAP_PRIVATE, filebuf->fd, 0)) == MAP_FAILED)
         return -1;
 
+    filebuf->done = 0;
     filebuf->ptr = tmp;
     filebuf->len = sbuf.st_size;
+    filebuf->offset = 0;
 
     return 0;
 }
@@ -46,7 +43,7 @@ start_reading(struct file_buffer *filebuf, const char* filename)
 const char*
 get_block(struct file_buffer *filebuf, size_t *len)
 {
-    const char *tmp = filebuf->ptr + filebuf->offset;
+    const char *tmp = (char*)filebuf->ptr + filebuf->offset;
     *len = filebuf->len - filebuf->offset;
     if (*len > BLOCK_SIZE) {
         *len = BLOCK_SIZE;
@@ -58,8 +55,10 @@ int
 advance_block(struct file_buffer *filebuf)
 {
     filebuf->offset += BLOCK_SIZE;
-    if (filebuf->offset > filebuf->len)
+    if (filebuf->offset > filebuf->len) {
+        filebuf->done = 1;
         return 0;
+    }
     return 1;
 }
 
