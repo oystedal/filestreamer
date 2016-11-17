@@ -31,12 +31,13 @@ dist: trusty
 addons:
   apt:
     sources:
+      - sourceline: 'ppa:ondrej/pkg-nlnetlabs'
       - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
     packages:
       - cmake
       - cmake-data
       - libldns-dev
-      - libuv-dev
+      - libuv1-dev
       - libjansson-dev
       - libmnl-dev
       - libsctp-dev 
