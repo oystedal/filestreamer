@@ -14,13 +14,6 @@ struct client {
 };
 
 neat_error_code
-on_readable(struct neat_flow_operations *ops)
-{
-    assert(0);
-    return NEAT_OK;
-}
-
-neat_error_code
 on_writable(struct neat_flow_operations *ops)
 {
     unsigned int i = 0, rc = 0;
@@ -149,7 +142,6 @@ setup_neat(void)
 
     NEAT_OPTARG_INT(NEAT_TAG_STREAM_COUNT, 3);
 
-    ops.on_readable = on_readable;
     ops.on_connected = on_connected;
     ops.on_error = on_error;
     neat_set_operations(ctx, flow, &ops);
