@@ -43,3 +43,4 @@ addons:
       - libjansson-dev
       - libmnl-dev
       - libsctp-dev 
+      - openssl
