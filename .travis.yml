@@ -34,7 +34,7 @@ addons:
       - cmake
       - cmake-data
       - libldns-dev
-      - libuv1-dev
+      - libuv-dev
       - libjansson-dev
       - libmnl-dev
       - libsctp-dev 
