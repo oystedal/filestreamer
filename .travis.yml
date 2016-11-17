@@ -31,3 +31,8 @@ addons:
     packages:
       - cmake
       - cmake-data
+      - libldns-dev
+      - libuv1-dev
+      - libjansson-dev
+      - libmnl-dev
+      - libsctp-dev 
