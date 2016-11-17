@@ -10,6 +10,7 @@ struct file_buffer {
     void *ptr;
     size_t len;
     size_t offset;
+    int done;
 };
 
 int start_reading(struct file_buffer *filebuf, const char* filename);
