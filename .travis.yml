@@ -26,6 +26,8 @@ script:
   - make
   - ctest -V
 
+dist: trusty
+
 addons:
   apt:
     sources:
