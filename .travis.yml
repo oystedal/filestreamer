@@ -2,6 +2,8 @@
 notifications:
   email: false
 
+sudo: required
+
 # Use clang++
 env:
     - CXX="clang++"
@@ -23,3 +25,22 @@ script:
   - cmake .. -DCMAKE_BUILD_TYPE=Debug
   - make
   - ctest -V
+
+dist: trusty
+
+addons:
+  apt:
+    sources:
+      - sourceline: 'ppa:0k53d-karl-f830m/openssl'
+      - sourceline: 'ppa:openrct2/jansson'
+      - sourceline: 'ppa:ondrej/pkg-nlnetlabs'
+      - george-edison55-precise-backports # cmake 3.2.3 / doxygen 1.8.3
+    packages:
+      - cmake
+      - cmake-data
+      - libldns-dev
+      - libuv1-dev
+      - libjansson-dev
+      - libmnl-dev
+      - libsctp-dev 
+      - openssl
