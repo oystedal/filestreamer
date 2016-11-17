@@ -29,5 +29,8 @@ add_executable(stream_neat
 target_compile_definitions(stream_neat PRIVATE WITH_NEAT)
 target_link_libraries(stream_neat libneat.so)
 
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/lib/libneat/libneat.so ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/lib/libneat/libneat.so.0 ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+
 enable_testing()
 add_subdirectory(test)
