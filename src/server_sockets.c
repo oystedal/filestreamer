@@ -21,6 +21,8 @@
 #include "file_reader.h"
 
 static int listen_fd = 0;
+static int no_of_files = 0;
+static char **files;
 
 struct client {
     int fd;
@@ -30,7 +32,7 @@ struct client {
 };
 
 int
-setup_listen_socket(void)
+setup_listen_socket(const char* port, int file_count, char* file_names[])
 {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -45,7 +47,7 @@ setup_listen_socket(void)
     hints.ai_addr      = NULL;
     hints.ai_next      = NULL;
 
-    s = getaddrinfo(NULL, "5001", &hints, &result);
+    s = getaddrinfo(NULL, port, &hints, &result);
     if (s != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
         return -1;
@@ -73,7 +75,7 @@ setup_listen_socket(void)
     struct sctp_initmsg initmsg;
     memset(&initmsg, 0, sizeof(initmsg));
 
-    initmsg.sinit_num_ostreams = 32;
+    initmsg.sinit_num_ostreams = file_count;
 
     if (setsockopt(sfd, IPPROTO_SCTP, SCTP_INITMSG, &initmsg, sizeof(initmsg)) < 0)
         return -1;
@@ -83,6 +85,9 @@ setup_listen_socket(void)
     }
 
     listen_fd = sfd;
+    files = file_names;
+    no_of_files = file_count;
+
     return 0;
 }
 
@@ -102,7 +107,7 @@ new_client(int efd, int listen_socket)
 
     memset(new_client, 0, sizeof(*new_client));
 
-    if ((new_client->fbs = calloc(3, sizeof(new_client->fbs))) == NULL) {
+    if ((new_client->fbs = calloc(no_of_files, sizeof(new_client->fbs))) == NULL) {
         errno = ENOMEM;
         rc = -1;
         goto error;
@@ -114,7 +119,7 @@ new_client(int efd, int listen_socket)
     }
 
     new_client->fd = new_fd;
-    new_client->fb_count = 3;
+    new_client->fb_count = no_of_files;
     new_client->fb_idx = 0;
 
     eev.events = EPOLLOUT;
@@ -125,19 +130,32 @@ new_client(int efd, int listen_socket)
         goto error;
     }
 
-    fcntl(new_fd, F_SETFL, O_NONBLOCK);
+    if (fcntl(new_fd, F_SETFL, O_NONBLOCK) < 0)
+        goto error;
 
-    for (int i = 0; i < 3; ++i) {
-        new_client->fbs[i] = malloc(sizeof(struct file_buffer));
-        start_reading(new_client->fbs[i], "foo");
+    for (int i = 0; i < no_of_files; ++i) {
+        if ((new_client->fbs[i] = malloc(sizeof(struct file_buffer))) == NULL)
+            goto error;
+        if (start_reading(new_client->fbs[i], files[i]))
+            goto error;
+    }
+
+    return 0;
+error:
+    if (new_fd) close(new_fd);
+    if (new_client) {
+        if (new_client->fbs) {
+            for (int i = 0; i < no_of_files; ++i) {
+                if (new_client->fbs[i]) {
+                    stop_reading(new_client->fbs[i]);
+                    free(new_client->fbs[i]);
+                }
+            }
+        }
+        free(new_client);
     }
 
     return rc;
-error:
-    if (new_fd) close(new_fd);
-    if (new_client) free(new_client);
-
-    return -1;
 }
 
 
@@ -155,13 +173,14 @@ close_client(int efd, struct client *cl)
         free(cl->fbs[i]);
     }
 
+    free(cl->fbs);
     free(cl);
 }
 
-int 
+int
 read_data(struct client *cl)
 {
-    char buf[1025];
+    static char buf[1025];
 
     int rc = recv(cl->fd, (void*)buf, 1024, 0);
     if (rc < 0) {
@@ -227,6 +246,11 @@ restart:
         size_t len = 0;
         const char* block = get_block(cl->fbs[cl->fb_idx], &len);
 
+        if (len == 0) {
+            cl->fb_idx = (cl->fb_idx+1) % cl->fb_count;
+            goto restart;
+        }
+
         iov.iov_base = (void*)block;
         iov.iov_len = len;
 
@@ -276,7 +300,7 @@ do_poll(void)
 
     int event_count;
     while ((event_count = epoll_wait(efd, events, sizeof(events) / sizeof(*events), -1)) >= 0) {
-        fprintf(stdout, "%d epoll events\n", event_count);
+        fprintf(stdout, "%d epoll event(s)\n", event_count);
         for (int i = 0; i < event_count; i++) {
             struct epoll_event *event = &events[i];
             struct client *cl = (struct client*)event->data.ptr;

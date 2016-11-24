@@ -44,10 +44,15 @@ const char*
 get_block(struct file_buffer *filebuf, size_t *len)
 {
     const char *tmp = (char*)filebuf->ptr + filebuf->offset;
-    *len = filebuf->len - filebuf->offset;
-    if (*len > BLOCK_SIZE) {
+
+    if (filebuf->len < filebuf->offset) {
+        *len = 0;
+    } else if (filebuf->len - filebuf->offset > BLOCK_SIZE) {
         *len = BLOCK_SIZE;
+    } else {
+        *len = filebuf->len - filebuf->offset;
     }
+
     return tmp;
 }
 
@@ -55,7 +60,7 @@ int
 advance_block(struct file_buffer *filebuf)
 {
     filebuf->offset += BLOCK_SIZE;
-    if (filebuf->offset > filebuf->len) {
+    if (filebuf->offset >= filebuf->len) {
         filebuf->done = 1;
         return 0;
     }

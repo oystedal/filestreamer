@@ -7,6 +7,9 @@
 
 #include "file_reader.h"
 
+static int no_of_files = 0;
+static char **files;
+
 struct client {
     struct file_buffer **fbs;
     size_t fb_idx;
@@ -77,14 +80,19 @@ on_close(struct neat_flow_operations *ops)
     neat_set_operations(ops->ctx, ops->flow, ops);
 
     for (unsigned int i = 0; i < cl->fb_count; ++i) {
+        if (cl->fbs[i] == NULL)
+            continue;
         stop_reading(cl->fbs[i]);
         free(cl->fbs[i]);
     }
 
     free(cl->fbs);
     free(cl);
-    
+
+#if 0
+    // For testing memory leakage
     neat_stop_event_loop(ops->ctx);
+#endif
 
     return NEAT_OK;
 }
@@ -99,17 +107,19 @@ on_connected(struct neat_flow_operations *ops)
         return NEAT_OK;
     }
 
-    cl->fb_count = 3;
+    cl->fb_count = no_of_files;
     cl->fb_idx = 0;
 
-    if ((cl->fbs = calloc(3, sizeof(cl->fbs))) == NULL) {
+    if ((cl->fbs = calloc(no_of_files, sizeof(cl->fbs))) == NULL) {
         neat_close(ops->ctx, ops->flow);
         return NEAT_OK;
     }
 
-    for (int i = 0; i < 3; ++i) {
-        cl->fbs[i] = malloc(sizeof(struct file_buffer));
-        start_reading(cl->fbs[i], "foo");
+    for (int i = 0; i < no_of_files; ++i) {
+        if ((cl->fbs[i] = malloc(sizeof(struct file_buffer))) == NULL)
+            goto error;
+        if (start_reading(cl->fbs[i], files[i]) < 0)
+            goto error;
     }
 
     ops->on_writable = on_writable;
@@ -118,10 +128,13 @@ on_connected(struct neat_flow_operations *ops)
     neat_set_operations(ops->ctx, ops->flow, ops);
 
     return NEAT_OK;
+error:
+    neat_close(ops->ctx, ops->flow);
+    return NEAT_OK;
 }
 
 int
-setup_neat(void)
+setup_neat(const char* port, int file_count, char *file_names[])
 {
     int rc = 0;
     struct neat_ctx *ctx = NULL;
@@ -133,14 +146,17 @@ setup_neat(void)
     memset(&ops, 0, sizeof(ops));
 
     if ((ctx = neat_init_ctx()) == NULL)
-        return -1; 
+        return -1;
 
     if ((flow = neat_new_flow(ctx)) == NULL) {
         rc = -1;
         goto error;
     }
 
-    NEAT_OPTARG_INT(NEAT_TAG_STREAM_COUNT, 3);
+    no_of_files = file_count;
+    files = file_names;
+
+    NEAT_OPTARG_INT(NEAT_TAG_STREAM_COUNT, file_count);
 
     ops.on_connected = on_connected;
     ops.on_error = on_error;
@@ -148,7 +164,8 @@ setup_neat(void)
 
     neat_set_property(ctx, flow, "{\"transport\": [{\"value\": \"SCTP\", \"precedence\": 2}]}");
 
-    neat_accept(ctx, flow, 5001, NEAT_OPTARGS, NEAT_OPTARGS_COUNT);
+    if (neat_accept(ctx, flow, 5001, NEAT_OPTARGS, NEAT_OPTARGS_COUNT) != NEAT_OK)
+        goto error;
 
     neat_start_event_loop(ctx, NEAT_RUN_DEFAULT);
 
